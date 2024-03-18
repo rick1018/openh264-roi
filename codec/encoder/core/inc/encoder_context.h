@@ -173,6 +173,9 @@ typedef struct TagWelsEncCtx {
   int32_t           iCheckWindowIntervalShift;
   bool              bCheckWindowShiftResetFlag;
   int32_t           iGlobalQp;      // global qp
+    
+// Rate control - ROI
+  int32_t           iRoiMbNums;
 
 // VAA
   SVAAFrameInfo*    pVaa;           // VAA information of reference

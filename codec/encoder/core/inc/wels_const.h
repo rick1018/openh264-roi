@@ -57,8 +57,8 @@
 #define PARA_SET_TYPE_PPS               2
 
 #define MAX_VERTICAL_MV_RANGE           1024  //TODO, for allocate enough memory for transpose
-#define MAX_FRAME_RATE                  60      // maximal frame rate to support
-#define MIN_FRAME_RATE                  1       // minimal frame rate need support
+#define MAX_FRAME_RATE                  25      // maximal frame rate to support
+#define MIN_FRAME_RATE                  15       // minimal frame rate need support
 
 #define MAX_BIT_RATE                    INT_MAX // maximal bit rate to support
 //TODO {Sijia}: 30fps*MaxCPB in level5.1 = 30*240000*1000bits = 7 200 000 000, larger than INT_MAX which is 2147483647, but this is also very big and abnormal number, should figure out a reasonable number after discussion

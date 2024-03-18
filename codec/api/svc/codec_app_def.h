@@ -543,6 +543,7 @@ typedef struct TagObjectRange {
   short iYStart;
   short iYEnd;
   int   iQpOffset;
+  short iRoiMBNums;
 } SObjectRange;
 
 /**

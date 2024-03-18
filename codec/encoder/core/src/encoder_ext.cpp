@@ -3628,6 +3628,7 @@ int32_t WelsEncoderEncodeExt (sWelsEncCtx* pCtx, SFrameBSInfo* pFbi, const SSour
     fsnr                        = pCtx->pDecPic;
 #endif//#if defined(ENABLE_FRAME_DUMP) || defined(ENABLE_PSNR_CALC)
     pCtx->pDecPic->iPictureType = pCtx->eSliceType;
+//      printf("[SDK] pCtx->iMaxSliceCount = %d\n", pCtx->iMaxSliceCount);
     pCtx->pDecPic->iFramePoc    = pParamInternal->iPOC;
 
     WelsInitCurrentLayer (pCtx, iCurWidth, iCurHeight);
