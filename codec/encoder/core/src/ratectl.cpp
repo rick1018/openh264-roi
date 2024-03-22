@@ -668,9 +668,9 @@ void RcAdjustMbQpByRange (sWelsEncCtx* pEncCtx, SMB* pCurMb) {
     /// |====================================================================|
     
     // [SDK] preset 1/3 frame is ROI region
-  uint16_t uiLumaQpRoiMbs       = (pDLayerParam->iVideoWidth * pDLayerParam->iVideoHeight) / (pCurSliceCtx->iMbWidth * pCurSliceCtx->iMbHeight) * (1 / 2);
-  uint8_t uiLumaQp              = pCurMb->uiLumaQp + 6;     // non ROI region
-  uint8_t uiLumaQpRoi           = pCurMb->uiLumaQp - 4;
+  uint8_t uiLumaQp              = pCurMb->uiLumaQp + 4;     // non ROI region
+  uint8_t uiLumaQpTransitArea   = pCurMb->uiLumaQp;
+  uint8_t uiLumaQpRoiArea       = pCurMb->uiLumaQp - 2;
   uint8_t uiChromaQp            = pCurMb->uiChromaQp;
   
   int16_t iMbX                  = pCurMb->iMbX;
@@ -693,10 +693,11 @@ void RcAdjustMbQpByRange (sWelsEncCtx* pEncCtx, SMB* pCurMb) {
           int16_t iYEnd     = (int16_t)pObjectRange[i].iYEnd;
           int     iQpOffset = (int)pObjectRange[i].iQpOffset;
           int16_t iRoiMBNums= (int16_t)pEncCtx->iRoiMbNums;     //pObjectRange[i].iRoiMBNums;
-          bool isRoiRegion = (iMbX >= iXStart) && (iMbX <= iXEnd) && (iMbY >= iYStart) && (iMbY <= iYEnd);
-          if (isRoiRegion && iRoiMBNums > 0) {
+          bool isRoiArea    = (iMbX >= iXStart) && (iMbX <= iXEnd) && (iMbY >= iYStart) && (iMbY <= iYEnd);
+          bool isTransitArea= (iMbX >= (iXStart - 5)) && (iMbX <= (iXEnd + 5)) && (iMbY >= (iYStart - 5)) && (iMbY <= (iYEnd + 5));
+          if (isRoiArea && iRoiMBNums > 0) {
 //              printf("[SDK] isRoiRegion = %d\n", isRoiRegion);
-              uiLumaQp = uiLumaQpRoi;
+              uiLumaQp = uiLumaQpRoiArea;
 //              uiLumaQp = (uint8_t)WELS_CLIP3 (
 //                    uiLumaQp - iQpOffset,
 //                    pWelsSvcRc->iMinFrameQp,
@@ -704,9 +705,15 @@ void RcAdjustMbQpByRange (sWelsEncCtx* pEncCtx, SMB* pCurMb) {
 //                    );
               uiChromaQp = uiLumaQp;//g_kuiChromaQpTable[CLIP3_QP_0_51 (uiLumaQp + kuiChromaQpIndexOffset)];
               --pEncCtx->iRoiMbNums;
+          } else if (isTransitArea) {
+              uiLumaQp = uiLumaQpTransitArea;
+              uiChromaQp = uiLumaQpTransitArea;
           }
-//          printf("[SDK] MB (%2d, %2d), iRoiMBNums = %d,  ROI %d QP = %d\n", iMbX, iMbY, (iRoiMBNums+1), isRoiRegion, uiLumaQp);
+//          printf("[SDK] MB (%2d, %2d), iRoiMBNums = %d, ROI %d QP = %d\n", iMbX, iMbY, (iRoiMBNums+1), isRoiRegion, uiLumaQp);
       }
+  } else {
+      uiLumaQp = uiLumaQpTransitArea;
+      uiChromaQp = uiLumaQp;
   }
     // ========
     
