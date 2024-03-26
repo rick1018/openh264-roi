@@ -373,7 +373,7 @@ int32_t CWelsH264SVCEncoder::Uninitialize() {
  *  SVC core encoding
  */
 int CWelsH264SVCEncoder::EncodeFrame (const SSourcePicture* kpSrcPic, SFrameBSInfo* pBsInfo) {
-  // printf("[SDK] No SObjectRange\n");
+    printf("[SDK] No SObjectRange\n");
   if (! (kpSrcPic && m_bInitialFlag && pBsInfo)) {
     WelsLog (&m_pWelsTrace->m_sLogCtx, WELS_LOG_ERROR, "CWelsH264SVCEncoder::EncodeFrame(), cmInitParaError.");
     return cmInitParaError;
@@ -485,12 +485,12 @@ int CWelsH264SVCEncoder ::EncodeFrameInternal (const SSourcePicture*  pSrcPic, S
 int CWelsH264SVCEncoder::EncodeFrame (const SSourcePicture* kpSrcPic, SFrameBSInfo* pBsInfo, SObjectRange* pObjectRange) {
     short xAsisMbs = kpSrcPic->iPicWidth / 16;
     short yAsisMbs = kpSrcPic->iPicHeight / 16;
-    pObjectRange->iXTransitStart = (pObjectRange->iXStart - 5) < 0? 0: (pObjectRange->iXStart - 5);
-    pObjectRange->iXTransitEnd = (pObjectRange->iXEnd + 5) > xAsisMbs? xAsisMbs: (pObjectRange->iXEnd + 5);
-    pObjectRange->iYTransitStart = (pObjectRange->iYStart - 5) < 0? 0: (pObjectRange->iYStart - 5);
-    pObjectRange->iYTransitEnd = (pObjectRange->iYEnd + 5) > yAsisMbs? yAsisMbs: (pObjectRange->iYEnd + 5);
+    pObjectRange->iXTransitStart = (pObjectRange->iXStart - 5);// < 0? 0: (pObjectRange->iXStart - 5);
+    pObjectRange->iXTransitEnd = (pObjectRange->iXEnd + 5);// > xAsisMbs? xAsisMbs: (pObjectRange->iXEnd + 5);
+    pObjectRange->iYTransitStart = (pObjectRange->iYStart - 5);// < 0? 0: (pObjectRange->iYStart - 5);
+    pObjectRange->iYTransitEnd = (pObjectRange->iYEnd + 5);// > yAsisMbs? yAsisMbs: (pObjectRange->iYEnd + 5);
 //    WelsLog(&m_pWelsTrace->m_sLogCtx, WELS_LOG_ERROR, "[SDK] ROI: X(%2d, %2d), Y(%2d, %2d); Trans: X(%2d, %2d), Y(%2d, %2d); RoiMB = %d\n", pObjectRange->iXStart, pObjectRange->iXEnd, pObjectRange->iYStart, pObjectRange->iYEnd, pObjectRange->iXTransitStart, pObjectRange->iXTransitEnd, pObjectRange->iYTransitStart, pObjectRange->iYTransitEnd, pObjectRange->iRoiMBNums);
-//  printf("[SDK] ROI: X(%2d, %2d), Y(%2d, %2d); Trans: X(%2d, %2d), Y(%2d, %2d); RoiMB = %d\n", pObjectRange->iXStart, pObjectRange->iXEnd, pObjectRange->iYStart, pObjectRange->iYEnd, pObjectRange->iXTransitStart, pObjectRange->iXTransitEnd, pObjectRange->iYTransitStart, pObjectRange->iYTransitEnd, pObjectRange->iRoiMBNums);
+//    printf("[SDK] ROI: X(%2d, %2d), Y(%2d, %2d); Trans: X(%2d, %2d), Y(%2d, %2d); RoiMB = %d\n", pObjectRange->iXStart, pObjectRange->iXEnd, pObjectRange->iYStart, pObjectRange->iYEnd, pObjectRange->iXTransitStart, pObjectRange->iXTransitEnd, pObjectRange->iYTransitStart, pObjectRange->iYTransitEnd, pObjectRange->iRoiMBNums);
   if (! (kpSrcPic && m_bInitialFlag && pBsInfo)) {
     WelsLog (&m_pWelsTrace->m_sLogCtx, WELS_LOG_ERROR, "CWelsH264SVCEncoder::EncodeFrame(), cmInitParaError.");
     return cmInitParaError;
@@ -536,7 +536,6 @@ int CWelsH264SVCEncoder ::EncodeFrameInternal (const SSourcePicture*  pSrcPic, S
           pObjectRange->iXStart, pObjectRange->iXEnd, pObjectRange->iYStart, pObjectRange->iYEnd, pObjectRange->iQpOffset);
 
   const int64_t kiBeforeFrameUs = WelsTime();
-//    m_pEncContext->iRoiMbNums = 680;    // set m_pEncContext
   const int32_t kiEncoderReturn = WelsEncoderEncodeExt (m_pEncContext, pBsInfo, pSrcPic);
   const int64_t kiCurrentFrameMs = (WelsTime() - kiBeforeFrameUs) / 1000;
   if ((kiEncoderReturn == ENC_RETURN_MEMALLOCERR) || (kiEncoderReturn == ENC_RETURN_MEMOVERFLOWFOUND)

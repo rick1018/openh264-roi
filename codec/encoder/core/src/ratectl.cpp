@@ -654,10 +654,10 @@ void RcInitGomParameters (sWelsEncCtx* pEncCtx) {
  * \return  void
 */
 void RcAdjustMbQpByRange (sWelsEncCtx* pEncCtx, SMB* pCurMb) {
-  SObjectRange* pObjectRange    = pEncCtx->pSvcParam->pObjectRange;
-//  SSpatialLayerConfig *pDLayerParam = &pEncCtx->pSvcParam->sSpatialLayers[pEncCtx->uiDependencyId];
-//  SSliceCtx* pCurSliceCtx       = &(pEncCtx->pCurDqLayer->sSliceEncCtx);
-//  int iObjectRangeNum           = pEncCtx->pSvcParam->iObjectRangeNum;
+    SObjectRange* pObjectRange    = pEncCtx->pSvcParam->pObjectRange;
+//    SSpatialLayerConfig *pDLayerParam = &pEncCtx->pSvcParam->sSpatialLayers[pEncCtx->uiDependencyId];
+//    SSliceCtx* pCurSliceCtx       = &(pEncCtx->pCurDqLayer->sSliceEncCtx);
+//    int iObjectRangeNum           = pEncCtx->pSvcParam->iObjectRangeNum;
     
     /// [ROI] RoI MBs modified QP - bitrate relationships
     /// |====================================================================|
@@ -668,54 +668,60 @@ void RcAdjustMbQpByRange (sWelsEncCtx* pEncCtx, SMB* pCurMb) {
     /// |====================================================================|
     
     // [SDK] preset 1/3 frame is ROI region
-  uint8_t uiLumaQp              = pCurMb->uiLumaQp;     // transition area
-//  uint8_t uiLumaQpTransitArea   = pCurMb->uiLumaQp;
-  uint8_t uiLumaQpBgArea        = pCurMb->uiLumaQp + 4;     // non ROI region
-  uint8_t uiLumaQpRoiArea       = pCurMb->uiLumaQp - 2;
-  uint8_t uiChromaQp            = pCurMb->uiChromaQp;
-  
-  int16_t iMbX                  = pCurMb->iMbX;
-  int16_t iMbY                  = pCurMb->iMbY;
-  SDqLayer* pCurLayer           = pEncCtx->pCurDqLayer;
-//  SWelsSvcRc* pWelsSvcRc        = &(pEncCtx->pWelsSvcRc[pEncCtx->uiDependencyId]);
-  const uint8_t kuiChromaQpIndexOffset = pCurLayer->sLayerInfo.pPpsP->uiChromaQpIndexOffset;
-
-  // SSliceCtx* pCurSliceCtx       = &(pEncCtx->pCurDqLayer->sSliceEncCtx);
-  // WelsLog(&pEncCtx->sLogCtx, WELS_LOG_WARNING,
-  // "RcAdjustMbQpByRange: iMbWidth=%d, iMbHeight=%d, iSliceNumInFrame=%d, iMbNumInFrame=%d",
-  // pCurSliceCtx->iMbWidth, pCurSliceCtx->iMbHeight, pCurSliceCtx->iSliceNumInFrame, pCurSliceCtx->iMbNumInFrame);
+    uint8_t uiLumaQp              = pCurMb->uiLumaQp;     // transition area
+//    uint8_t uiLumaQpTransitArea   = pCurMb->uiLumaQp;
+    uint8_t uiLumaQpBgArea        = pCurMb->uiLumaQp + 4;     // non ROI region
+    uint8_t uiLumaQpRoiArea       = pCurMb->uiLumaQp - 2;
+    uint8_t uiChromaQp            = pCurMb->uiChromaQp;
+    
+    int16_t iMbX                  = pCurMb->iMbX;
+    int16_t iMbY                  = pCurMb->iMbY;
+    SDqLayer* pCurLayer           = pEncCtx->pCurDqLayer;
+    //    SWelsSvcRc* pWelsSvcRc        = &(pEncCtx->pWelsSvcRc[pEncCtx->uiDependencyId]);
+    const uint8_t kuiChromaQpIndexOffset = pCurLayer->sLayerInfo.pPpsP->uiChromaQpIndexOffset;
+    
+//    SSliceCtx* pCurSliceCtx       = &(pEncCtx->pCurDqLayer->sSliceEncCtx);
+//    WelsLog(&pEncCtx->sLogCtx, WELS_LOG_WARNING,
+//            "RcAdjustMbQpByRange: iMbWidth=%d, iMbHeight=%d, iSliceNumInFrame=%d, iMbNumInFrame=%d",
+//            pCurSliceCtx->iMbWidth, pCurSliceCtx->iMbHeight, pCurSliceCtx->iSliceNumInFrame, pCurSliceCtx->iMbNumInFrame);
     
     // ==========
-  if (pObjectRange != NULL) {
-//      int16_t iXStart   = (int16_t)pObjectRange->iXStart;
-//      int16_t iXEnd     = (int16_t)pObjectRange->iXEnd;
-//      int16_t iYStart   = (int16_t)pObjectRange->iYStart;
-//      int16_t iYEnd     = (int16_t)pObjectRange->iYEnd;
-//      int16_t iXTransitStart   = (int16_t)pObjectRange->iXTransitStart;
-//      int16_t iXTransitEnd     = (int16_t)pObjectRange->iXTransitEnd;
-//      int16_t iYTransitStart   = (int16_t)pObjectRange->iYTransitStart;
-//      int16_t iYTransitEnd     = (int16_t)pObjectRange->iYTransitEnd;
-//      int     iQpOffset = (int)pObjectRange->iQpOffset;
-//      for (int i = 0; i < iObjectRangeNum; i++) {
-        bool isRoiArea    = (iMbX >= pObjectRange->iXStart) && (iMbX <= pObjectRange->iXEnd) && (iMbY >= pObjectRange->iYStart) && (iMbY <= pObjectRange->iYEnd);
-        bool isTransitArea= (iMbX >= pObjectRange->iXTransitStart) && (iMbX <= pObjectRange->iXTransitEnd) && (iMbY >= pObjectRange->iYTransitStart) && (iMbY <= pObjectRange->iYTransitEnd);
-          if (isRoiArea) {
-              uiLumaQp = uiLumaQpRoiArea;
-//              uiLumaQp = (uint8_t)WELS_CLIP3 (
-//                    uiLumaQp - iQpOffset,
-//                    pWelsSvcRc->iMinFrameQp,
-//                    pWelsSvcRc->iMaxFrameQp
-//                    );
-          } else if (!isTransitArea) {
-              uiLumaQp = uiLumaQpBgArea;
-          }
-//      }
-  }
-  uiChromaQp = g_kuiChromaQpTable[CLIP3_QP_0_51 (uiLumaQp + kuiChromaQpIndexOffset)];
+    if (pObjectRange != NULL) {
+//        int16_t iXStart   = (int16_t)pObjectRange->iXStart;
+//        int16_t iXEnd     = (int16_t)pObjectRange->iXEnd;
+//        int16_t iYStart   = (int16_t)pObjectRange->iYStart;
+//        int16_t iYEnd     = (int16_t)pObjectRange->iYEnd;
+//        int16_t iXTransitStart   = (int16_t)pObjectRange->iXTransitStart;
+//        int16_t iXTransitEnd     = (int16_t)pObjectRange->iXTransitEnd;
+//        int16_t iYTransitStart   = (int16_t)pObjectRange->iYTransitStart;
+//        int16_t iYTransitEnd     = (int16_t)pObjectRange->iYTransitEnd;
+//        int     iQpOffset = (int)pObjectRange->iQpOffset;
+//        for (int i = 0; i < iObjectRangeNum; i++) {
+        bool isBgArea   = (iMbX < pObjectRange->iXTransitStart) || (iMbX > pObjectRange->iXTransitEnd) || (iMbY < pObjectRange->iYTransitStart) || (iMbY > pObjectRange->iYTransitEnd);
+        if (isBgArea) {
+            uiLumaQp = uiLumaQpBgArea;
+        } else {
+            if ((iMbX >= pObjectRange->iXStart) && (iMbX <= pObjectRange->iXEnd) && (iMbY >= pObjectRange->iYStart) && (iMbY <= pObjectRange->iYEnd)) {
+                uiLumaQp = uiLumaQpRoiArea;
+            }
+        }
+//        if (isRoiArea) {
+//            uiLumaQp = uiLumaQpRoiArea;
+//            uiLumaQp = (uint8_t)WELS_CLIP3 (
+//                                            uiLumaQp - iQpOffset,
+//                                            pWelsSvcRc->iMinFrameQp,
+//                                            pWelsSvcRc->iMaxFrameQp
+//                                            );
+//        } else if (isBgArea) {
+//            uiLumaQp = uiLumaQpBgArea;
+//        }
+//    }
+    }
+    uiChromaQp = g_kuiChromaQpTable[CLIP3_QP_0_51 (uiLumaQp + kuiChromaQpIndexOffset)];
     // ========
     
-  pCurMb->uiLumaQp = uiLumaQp;
-  pCurMb->uiChromaQp = uiChromaQp;
+    pCurMb->uiLumaQp = uiLumaQp;
+    pCurMb->uiChromaQp = uiChromaQp;
 }
 
 void RcCalculateMbQp (sWelsEncCtx* pEncCtx, SSlice* pSlice, SMB* pCurMb) {
