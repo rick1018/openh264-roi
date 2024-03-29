@@ -655,36 +655,31 @@ void RcInitGomParameters (sWelsEncCtx* pEncCtx) {
 */
 void RcAdjustMbQpByRange (sWelsEncCtx* pEncCtx, SMB* pCurMb) {
     SObjectRange* pObjectRange    = pEncCtx->pSvcParam->pObjectRange;
-    uint8_t uiLumaQp              = pCurMb->uiLumaQp;     // transition area
-    uint8_t uiLumaQpBgArea        = pCurMb->uiLumaQp + 4;     // non ROI region
+    uint8_t uiLumaQp              = pCurMb->uiLumaQp;       // transition area
+    uint8_t uiLumaQpBgArea        = pCurMb->uiLumaQp + 4;   // non ROI region
     uint8_t uiLumaQpRoiArea       = pCurMb->uiLumaQp - 2;
     uint8_t uiChromaQp            = pCurMb->uiChromaQp;
     int16_t iMbX                  = pCurMb->iMbX;
     int16_t iMbY                  = pCurMb->iMbY;
     SDqLayer* pCurLayer           = pEncCtx->pCurDqLayer;
+//    SWelsSvcRc* pWelsSvcRc        = &(pEncCtx->pWelsSvcRc[pEncCtx->uiDependencyId]);
     const uint8_t kuiChromaQpIndexOffset = pCurLayer->sLayerInfo.pPpsP->uiChromaQpIndexOffset;
 
-    // ==========
+    // === Adjust QP using ROI region ===================================
+    // ROI area: face detection results
+    // Transition area: expand the ROI area by 5 marco blocks outward
+    // Background Area: outside transition area
+
     if (pObjectRange != NULL) {
         bool isBgArea   = (iMbX < pObjectRange->iXTransitStart) || (iMbX > pObjectRange->iXTransitEnd) || (iMbY < pObjectRange->iYTransitStart) || (iMbY > pObjectRange->iYTransitEnd);
         if (isBgArea) {
             uiLumaQp = uiLumaQpBgArea;
         } else {
             if ((iMbX >= pObjectRange->iXStart) && (iMbX <= pObjectRange->iXEnd) && (iMbY >= pObjectRange->iYStart) && (iMbY <= pObjectRange->iYEnd)) {
+//                uiLumaQp = (uint8_t)WELS_CLIP3 (uiLumaQp, pWelsSvcRc->iMinFrameQp, pWelsSvcRc->iMaxFrameQp);
                 uiLumaQp = uiLumaQpRoiArea;
             }
         }
-//        if (isRoiArea) {
-//            uiLumaQp = uiLumaQpRoiArea;
-//            uiLumaQp = (uint8_t)WELS_CLIP3 (
-//                                            uiLumaQp - iQpOffset,
-//                                            pWelsSvcRc->iMinFrameQp,
-//                                            pWelsSvcRc->iMaxFrameQp
-//                                            );
-//        } else if (isBgArea) {
-//            uiLumaQp = uiLumaQpBgArea;
-//        }
-//    }
     }
     uiChromaQp = g_kuiChromaQpTable[CLIP3_QP_0_51 (uiLumaQp + kuiChromaQpIndexOffset)];
     // ========
