@@ -542,6 +542,10 @@ typedef struct TagObjectRange {
   short iXEnd;
   short iYStart;
   short iYEnd;
+  short iXTransitStart;
+  short iXTransitEnd;
+  short iYTransitStart;
+  short iYTransitEnd;
 } SObjectRange;
 
 /**
