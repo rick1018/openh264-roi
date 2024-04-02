@@ -373,7 +373,6 @@ int32_t CWelsH264SVCEncoder::Uninitialize() {
  *  SVC core encoding
  */
 int CWelsH264SVCEncoder::EncodeFrame (const SSourcePicture* kpSrcPic, SFrameBSInfo* pBsInfo) {
-  // printf("[SDK] No SObjectRange\n");
   if (! (kpSrcPic && m_bInitialFlag && pBsInfo)) {
     WelsLog (&m_pWelsTrace->m_sLogCtx, WELS_LOG_ERROR, "CWelsH264SVCEncoder::EncodeFrame(), cmInitParaError.");
     return cmInitParaError;
@@ -483,7 +482,12 @@ int CWelsH264SVCEncoder ::EncodeFrameInternal (const SSourcePicture*  pSrcPic, S
  *  SVC core encoding
  */
 int CWelsH264SVCEncoder::EncodeFrame (const SSourcePicture* kpSrcPic, SFrameBSInfo* pBsInfo, SObjectRange* pObjectRange) {
-  printf("[SDK] SObject: X:(%2d, %2d), Y:(%2d, %2d), RoiMB = %d\n", pObjectRange->iXStart, pObjectRange->iXEnd, pObjectRange->iYStart, pObjectRange->iYEnd, pObjectRange->iRoiMBNums);
+  short xAsisMbs = kpSrcPic->iPicWidth / 16;
+  short yAsisMbs = kpSrcPic->iPicHeight / 16;
+  pObjectRange->iXTransitStart = (pObjectRange->iXStart - 5);
+  pObjectRange->iXTransitEnd = (pObjectRange->iXEnd + 5);
+  pObjectRange->iYTransitStart = (pObjectRange->iYStart - 5);
+  pObjectRange->iYTransitEnd = (pObjectRange->iYEnd + 5);
   if (! (kpSrcPic && m_bInitialFlag && pBsInfo)) {
     WelsLog (&m_pWelsTrace->m_sLogCtx, WELS_LOG_ERROR, "CWelsH264SVCEncoder::EncodeFrame(), cmInitParaError.");
     return cmInitParaError;
@@ -494,9 +498,7 @@ int CWelsH264SVCEncoder::EncodeFrame (const SSourcePicture* kpSrcPic, SFrameBSIn
     return cmInitParaError;
   }
 
-  WelsLog(&m_pWelsTrace->m_sLogCtx, WELS_LOG_WARNING, "EncodeFrame() with pObjectRange before EncodeFrameInternal()");
   const int32_t kiEncoderReturn = EncodeFrameInternal (kpSrcPic, pBsInfo, pObjectRange);
-  WelsLog(&m_pWelsTrace->m_sLogCtx, WELS_LOG_WARNING, "EncodeFrame() with pObjectRange after EncodeFrameInternal()");
 
   if (kiEncoderReturn != cmResultSuccess) {
     WelsLog (&m_pWelsTrace->m_sLogCtx, WELS_LOG_ERROR, "CWelsH264SVCEncoder::EncodeFrame(), kiEncoderReturn %d",
@@ -522,12 +524,6 @@ int CWelsH264SVCEncoder ::EncodeFrameInternal (const SSourcePicture*  pSrcPic, S
     return cmUnsupportedData;
   }
 
-  m_pEncContext->pSvcParam->iObjectRangeNum = 1;
-  m_pEncContext->pSvcParam->pObjectRange = pObjectRange;
-
-  WelsLog(&m_pWelsTrace->m_sLogCtx, WELS_LOG_WARNING, "CWelsH264SVCEncoder::EncodeFrameInternal(), pObjectRange->iXStart=%d, pObjectRange->iXEnd=%d, pObjectRange->iYStart=%d, pObjectRange->iYEnd=%d, pObjectRange->iQpOffset=%d",
-          pObjectRange->iXStart, pObjectRange->iXEnd, pObjectRange->iYStart, pObjectRange->iYEnd, pObjectRange->iQpOffset);
-
   const int64_t kiBeforeFrameUs = WelsTime();
   const int32_t kiEncoderReturn = WelsEncoderEncodeExt (m_pEncContext, pBsInfo, pSrcPic);
   const int64_t kiCurrentFrameMs = (WelsTime() - kiBeforeFrameUs) / 1000;
@@ -536,7 +532,8 @@ int CWelsH264SVCEncoder ::EncodeFrameInternal (const SSourcePicture*  pSrcPic, S
     WelsLog (&m_pWelsTrace->m_sLogCtx, WELS_LOG_DEBUG, "CWelsH264SVCEncoder::EncodeFrame() not succeed, err=%d",
              kiEncoderReturn);
     WelsUninitEncoderExt (&m_pEncContext);
-    return cmMallocMemeError;  } else if ((kiEncoderReturn != ENC_RETURN_SUCCESS) && (kiEncoderReturn == ENC_RETURN_CORRECTED)) {
+    return cmMallocMemeError;
+  } else if ((kiEncoderReturn != ENC_RETURN_SUCCESS) && (kiEncoderReturn == ENC_RETURN_CORRECTED)) {
     WelsLog (&m_pWelsTrace->m_sLogCtx, WELS_LOG_ERROR, "unexpected return(%d) from EncodeFrameInternal()!",
              kiEncoderReturn);
     return cmUnknownReason;

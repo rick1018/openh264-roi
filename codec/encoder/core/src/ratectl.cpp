@@ -654,72 +654,38 @@ void RcInitGomParameters (sWelsEncCtx* pEncCtx) {
  * \return  void
 */
 void RcAdjustMbQpByRange (sWelsEncCtx* pEncCtx, SMB* pCurMb) {
-  SObjectRange* pObjectRange    = pEncCtx->pSvcParam->pObjectRange;
-  SSpatialLayerConfig *pDLayerParam = &pEncCtx->pSvcParam->sSpatialLayers[pEncCtx->uiDependencyId];
-  SSliceCtx* pCurSliceCtx       = &(pEncCtx->pCurDqLayer->sSliceEncCtx);
-  int iObjectRangeNum           = pEncCtx->pSvcParam->iObjectRangeNum;
-    
-    /// [ROI] RoI MBs modified QP - bitrate relationships
-    /// |====================================================================|
-    /// | RoiMbs / TotalMbs | uiLumaQp | uiLumaQpRoi | diffTargetBitrate (%) |
-    /// |===================|==========|=============|=======================|
-    /// |     1  /  2       |  QP + 6  |   QP - 4    |   -6 ~ 7  (-10 ~ 10)  |
-    /// |     1  /  3       |  QP + 4  |   QP - 4    |   -5 ~ 5  (- 8 ~  8)  |
-    /// |====================================================================|
-    
-    // [SDK] preset 1/3 frame is ROI region
-  uint8_t uiLumaQp              = pCurMb->uiLumaQp + 4;     // non ROI region
-  uint8_t uiLumaQpTransitArea   = pCurMb->uiLumaQp;
-  uint8_t uiLumaQpRoiArea       = pCurMb->uiLumaQp - 2;
-  uint8_t uiChromaQp            = pCurMb->uiChromaQp;
-  
-  int16_t iMbX                  = pCurMb->iMbX;
-  int16_t iMbY                  = pCurMb->iMbY;
-  SDqLayer* pCurLayer           = pEncCtx->pCurDqLayer;
-  SWelsSvcRc* pWelsSvcRc        = &(pEncCtx->pWelsSvcRc[pEncCtx->uiDependencyId]);
-  const uint8_t kuiChromaQpIndexOffset = pCurLayer->sLayerInfo.pPpsP->uiChromaQpIndexOffset;
+    SObjectRange* pObjectRange    = pEncCtx->pSvcParam->pObjectRange;
+    uint8_t uiLumaQp              = pCurMb->uiLumaQp;       // transition area
+    uint8_t uiLumaQpBgArea        = pCurMb->uiLumaQp + 4;   // non ROI region
+    uint8_t uiLumaQpRoiArea       = pCurMb->uiLumaQp - 2;
+    uint8_t uiChromaQp            = pCurMb->uiChromaQp;
+    int16_t iMbX                  = pCurMb->iMbX;
+    int16_t iMbY                  = pCurMb->iMbY;
+    SDqLayer* pCurLayer           = pEncCtx->pCurDqLayer;
+//    SWelsSvcRc* pWelsSvcRc        = &(pEncCtx->pWelsSvcRc[pEncCtx->uiDependencyId]);
+    const uint8_t kuiChromaQpIndexOffset = pCurLayer->sLayerInfo.pPpsP->uiChromaQpIndexOffset;
 
-  // SSliceCtx* pCurSliceCtx       = &(pEncCtx->pCurDqLayer->sSliceEncCtx);
-  // WelsLog(&pEncCtx->sLogCtx, WELS_LOG_WARNING,
-  // "RcAdjustMbQpByRange: iMbWidth=%d, iMbHeight=%d, iSliceNumInFrame=%d, iMbNumInFrame=%d",
-  // pCurSliceCtx->iMbWidth, pCurSliceCtx->iMbHeight, pCurSliceCtx->iSliceNumInFrame, pCurSliceCtx->iMbNumInFrame);
-    
-    // ==========
-  if (pObjectRange != NULL) {
-      for (int i = 0; i < iObjectRangeNum; i++) {
-          int16_t iXStart   = (int16_t)pObjectRange[i].iXStart;
-          int16_t iXEnd     = (int16_t)pObjectRange[i].iXEnd;
-          int16_t iYStart   = (int16_t)pObjectRange[i].iYStart;
-          int16_t iYEnd     = (int16_t)pObjectRange[i].iYEnd;
-          int     iQpOffset = (int)pObjectRange[i].iQpOffset;
-          int16_t iRoiMBNums= (int16_t)pEncCtx->iRoiMbNums;     //pObjectRange[i].iRoiMBNums;
-          bool isRoiArea    = (iMbX >= iXStart) && (iMbX <= iXEnd) && (iMbY >= iYStart) && (iMbY <= iYEnd);
-          bool isTransitArea= (iMbX >= (iXStart - 5)) && (iMbX <= (iXEnd + 5)) && (iMbY >= (iYStart - 5)) && (iMbY <= (iYEnd + 5));
-          if (isRoiArea && iRoiMBNums > 0) {
-//              printf("[SDK] isRoiRegion = %d\n", isRoiRegion);
-              uiLumaQp = uiLumaQpRoiArea;
-//              uiLumaQp = (uint8_t)WELS_CLIP3 (
-//                    uiLumaQp - iQpOffset,
-//                    pWelsSvcRc->iMinFrameQp,
-//                    pWelsSvcRc->iMaxFrameQp
-//                    );
-              uiChromaQp = uiLumaQp;//g_kuiChromaQpTable[CLIP3_QP_0_51 (uiLumaQp + kuiChromaQpIndexOffset)];
-              --pEncCtx->iRoiMbNums;
-          } else if (isTransitArea) {
-              uiLumaQp = uiLumaQpTransitArea;
-              uiChromaQp = uiLumaQpTransitArea;
-          }
-//          printf("[SDK] MB (%2d, %2d), iRoiMBNums = %d, ROI %d QP = %d\n", iMbX, iMbY, (iRoiMBNums+1), isRoiRegion, uiLumaQp);
-      }
-  } else {
-      uiLumaQp = uiLumaQpTransitArea;
-      uiChromaQp = uiLumaQp;
-  }
+    // === Adjust QP using ROI region ===================================
+    // ROI area: face detection results
+    // Transition area: expand the ROI area by 5 marco blocks outward
+    // Background Area: outside transition area
+
+    if (pObjectRange != NULL) {
+        bool isBgArea   = (iMbX < pObjectRange->iXTransitStart) || (iMbX > pObjectRange->iXTransitEnd) || (iMbY < pObjectRange->iYTransitStart) || (iMbY > pObjectRange->iYTransitEnd);
+        if (isBgArea) {
+            uiLumaQp = uiLumaQpBgArea;
+        } else {
+            if ((iMbX >= pObjectRange->iXStart) && (iMbX <= pObjectRange->iXEnd) && (iMbY >= pObjectRange->iYStart) && (iMbY <= pObjectRange->iYEnd)) {
+//                uiLumaQp = (uint8_t)WELS_CLIP3 (uiLumaQp, pWelsSvcRc->iMinFrameQp, pWelsSvcRc->iMaxFrameQp);
+                uiLumaQp = uiLumaQpRoiArea;
+            }
+        }
+    }
+    uiChromaQp = g_kuiChromaQpTable[CLIP3_QP_0_51 (uiLumaQp + kuiChromaQpIndexOffset)];
     // ========
     
-  pCurMb->uiLumaQp = uiLumaQp;
-  pCurMb->uiChromaQp = uiLumaQp;//uiChromaQp;
-//    printf("[SDK] pCurMb, QP = %d\n", uiLumaQp);
+    pCurMb->uiLumaQp = uiLumaQp;
+    pCurMb->uiChromaQp = uiChromaQp;
 }
 
 void RcCalculateMbQp (sWelsEncCtx* pEncCtx, SSlice* pSlice, SMB* pCurMb) {
