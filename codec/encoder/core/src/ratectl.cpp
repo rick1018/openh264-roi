@@ -46,6 +46,21 @@
 #include "utils.h"
 #include "svc_enc_golomb.h"
 
+// Original fixed values
+#define QP_DIFF_ROI -6
+#define QP_DIFF_BG 10
+
+// Dynamic ROI adjustment ranges
+#define QP_DIFF_ROI_MIN -12
+#define QP_DIFF_ROI_MAX -2
+#define QP_DIFF_BG_MIN 6
+#define QP_DIFF_BG_MAX 16
+
+// ROI control thresholds
+#define ROI_BUFFER_USAGE_HIGH 0.7f
+#define ROI_BUFFER_USAGE_CRITICAL 0.85f
+#define ROI_AREA_RATIO_HIGH 0.35f
+#define ROI_EFFECTIVENESS_THRESHOLD 0.5f
 
 namespace WelsEnc {
 
@@ -550,12 +565,105 @@ void RcInitSliceInformation (sWelsEncCtx* pEncCtx) {
   }
 }
 
+/*!
+ * \brief   calculate ROI area ratio in current frame
+ * \param   pEncCtx    encoder context
+ * \return  ROI area ratio (0.0 - 1.0)
+ */
+static float RcCalculateRoiAreaRatio(sWelsEncCtx* pEncCtx) {
+    SObjectRange* pObjectRange = pEncCtx->pSvcParam->pObjectRange;
+    if (pObjectRange == NULL) return 0.0f;
+    
+    SWelsSvcRc* pWelsSvcRc = &pEncCtx->pWelsSvcRc[pEncCtx->uiDependencyId];
+    int32_t iTotalMbs = pWelsSvcRc->iNumberMbFrame;
+    
+    int32_t iRoiWidth = (pObjectRange->iXEnd - pObjectRange->iXStart + 1);
+    int32_t iRoiHeight = (pObjectRange->iYEnd - pObjectRange->iYStart + 1);
+    int32_t iRoiMbs = iRoiWidth * iRoiHeight;
+    
+    return (float)iRoiMbs / (float)iTotalMbs;
+}
+
+/*!
+ * \brief   calculate buffer usage ratio
+ * \param   pEncCtx    encoder context
+ * \return  buffer usage ratio (0.0 - 1.0)
+ */
+static float RcCalculateBufferUsage(sWelsEncCtx* pEncCtx) {
+    SWelsSvcRc* pWelsSvcRc = &pEncCtx->pWelsSvcRc[pEncCtx->uiDependencyId];
+    if (pWelsSvcRc->iBufferSizeSkip <= 0) return 0.0f;
+    
+    return (float)pWelsSvcRc->iBufferFullnessSkip / (float)pWelsSvcRc->iBufferSizeSkip;
+}
+
+/*!
+ * \brief   calculate dynamic ROI QP adjustment based on rate control status
+ * \param   pEncCtx    encoder context
+ * \param   pRoiDiff   output ROI QP difference
+ * \param   pBgDiff    output background QP difference
+ * \return  void
+ */
+static void RcCalculateDynamicRoiQpDiff(sWelsEncCtx* pEncCtx, int32_t* pRoiDiff, int32_t* pBgDiff) {
+    // Default values
+    *pRoiDiff = QP_DIFF_ROI;
+    *pBgDiff = QP_DIFF_BG;
+    
+    // Calculate current status
+    float fRoiAreaRatio = RcCalculateRoiAreaRatio(pEncCtx);
+    float fBufferUsage = RcCalculateBufferUsage(pEncCtx);
+    
+    SWelsSvcRc* pWelsSvcRc = &pEncCtx->pWelsSvcRc[pEncCtx->uiDependencyId];
+    SRCSlicing* pSOverRc = NULL;
+    
+    // Get current slice info if available
+    if (pEncCtx->pCurDqLayer && pEncCtx->pCurDqLayer->ppSliceInLayer &&
+        pEncCtx->pCurDqLayer->ppSliceInLayer[0]) {
+        pSOverRc = &pEncCtx->pCurDqLayer->ppSliceInLayer[0]->sSlicingOverRc;
+    }
+    
+    // Check rate control pressure
+    bool bRatePressure = false;
+    if (pSOverRc) {
+        int64_t iLeftBits = pSOverRc->iTargetBitsSlice - pSOverRc->iFrameBitsSlice;
+        bRatePressure = (iLeftBits <= pSOverRc->iTargetBitsSlice * 0.3f);
+    }
+    
+    // Adjust ROI strength based on conditions
+    float fReductionFactor = 1.0f;
+    
+    // Factor 1: Buffer usage
+    if (fBufferUsage > ROI_BUFFER_USAGE_CRITICAL) {
+        fReductionFactor *= 0.3f;  // Reduce to 30%
+    } else if (fBufferUsage > ROI_BUFFER_USAGE_HIGH) {
+        fReductionFactor *= 0.6f;  // Reduce to 60%
+    }
+    
+    // Factor 2: ROI area ratio
+    if (fRoiAreaRatio > ROI_AREA_RATIO_HIGH) {
+        fReductionFactor *= 0.7f;  // Large ROI needs less aggressive adjustment
+    }
+    
+    // Factor 3: Rate control pressure
+    if (bRatePressure) {
+        fReductionFactor *= 0.5f;  // Under rate pressure, reduce ROI strength
+    }
+    
+    // Apply reduction factor
+    *pRoiDiff = (int32_t)(QP_DIFF_ROI * fReductionFactor);
+    *pBgDiff = (int32_t)(QP_DIFF_BG * fReductionFactor);
+    
+    // Clamp to safe ranges
+    *pRoiDiff = WELS_CLIP3(*pRoiDiff, QP_DIFF_ROI_MIN, QP_DIFF_ROI_MAX);
+    *pBgDiff = WELS_CLIP3(*pBgDiff, QP_DIFF_BG_MIN, QP_DIFF_BG_MAX);
+}
+
 void RcDecideTargetBits (sWelsEncCtx* pEncCtx) {
   SWelsSvcRc* pWelsSvcRc        = &pEncCtx->pWelsSvcRc[pEncCtx->uiDependencyId];
   SRCTemporal* pTOverRc         = &pWelsSvcRc->pTemporalOverRc[pEncCtx->uiTemporalId];
 
   pWelsSvcRc->iCurrentBitsLevel = BITS_NORMAL;
-  //allocate bits
+  
+  //allocate bits with ROI consideration
   if (pEncCtx->eSliceType == I_SLICE) {
     pWelsSvcRc->iTargetBits = pWelsSvcRc->iBitsPerFrame * IDR_BITRATE_RATIO;
   } else {
@@ -570,8 +678,46 @@ void RcDecideTargetBits (sWelsEncCtx* pEncCtx) {
     }
     pWelsSvcRc->iTargetBits = WELS_CLIP3 (pWelsSvcRc->iTargetBits, pTOverRc->iMinBitsTl, pTOverRc->iMaxBitsTl);
   }
+  
+  // ROI-aware bit budget adjustment
+  SObjectRange* pObjectRange = pEncCtx->pSvcParam->pObjectRange;
+  if (pObjectRange != NULL && pWelsSvcRc->iTargetBits > 0) {
+    // Calculate ROI area ratio and expected bit increase
+    float fRoiAreaRatio = RcCalculateRoiAreaRatio(pEncCtx);
+    float fBufferUsage = RcCalculateBufferUsage(pEncCtx);
+    
+    // Estimate additional bits needed for ROI enhancement
+    // ROI area typically needs 40-60% more bits with QP-4
+    float fRoiBitIncrease = fRoiAreaRatio * 0.5f; // 50% increase for ROI area
+    
+    // Background area can save 50-70% bits with QP+12
+    float fBgBitSaving = (1.0f - fRoiAreaRatio) * 0.6f; // 60% saving for background
+    
+    // Net effect: usually bit saving, but need to reserve some for ROI quality
+    float fNetBitChange = fRoiBitIncrease - fBgBitSaving;
+    
+    // Under high buffer pressure, reduce ROI bit reservation
+    if (fBufferUsage > ROI_BUFFER_USAGE_HIGH) {
+      fNetBitChange *= (1.0f - fBufferUsage); // Reduce reservation when buffer is full
+    }
+    
+    // Reserve additional bits for ROI if needed (typically negative, so we save bits)
+    int32_t iRoiBitReservation = (int32_t)(pWelsSvcRc->iTargetBits * fNetBitChange);
+    
+    // Apply reservation but ensure we don't exceed limits
+    int32_t iAdjustedTargetBits = pWelsSvcRc->iTargetBits + iRoiBitReservation;
+    iAdjustedTargetBits = WELS_CLIP3(iAdjustedTargetBits,
+                                     pTOverRc->iMinBitsTl,
+                                     pTOverRc->iMaxBitsTl);
+    
+    WelsLog(&(pEncCtx->sLogCtx), WELS_LOG_ERROR,
+            "[ROI] Original=%d, ROI_Reserve=%d, Adjusted=%d, RoiRatio=%.2f",
+            pWelsSvcRc->iTargetBits, iRoiBitReservation, iAdjustedTargetBits, fRoiAreaRatio);
+            
+    pWelsSvcRc->iTargetBits = iAdjustedTargetBits;
+  }
+  
   pWelsSvcRc->iRemainingWeights -= pTOverRc->iTlayerWeight;
-
 }
 
 void RcDecideTargetBitsTimestamp (sWelsEncCtx* pEncCtx) {
@@ -648,7 +794,7 @@ void RcInitGomParameters (sWelsEncCtx* pEncCtx) {
 }
 
 /*!
- * \brief   adjust mb qp by object range
+ * \brief   adjust mb qp by object range with dynamic adaptation
  * \param   pEncCtx    encoder context
  * \param   pCurMb     current macroblock
  * \return  void
@@ -656,33 +802,63 @@ void RcInitGomParameters (sWelsEncCtx* pEncCtx) {
 void RcAdjustMbQpByRange (sWelsEncCtx* pEncCtx, SMB* pCurMb) {
     SObjectRange* pObjectRange    = pEncCtx->pSvcParam->pObjectRange;
     uint8_t uiLumaQp              = pCurMb->uiLumaQp;       // transition area
-    uint8_t uiLumaQpBgArea        = pCurMb->uiLumaQp + 4;   // non ROI region
-    uint8_t uiLumaQpRoiArea       = pCurMb->uiLumaQp - 2;
     uint8_t uiChromaQp            = pCurMb->uiChromaQp;
     int16_t iMbX                  = pCurMb->iMbX;
     int16_t iMbY                  = pCurMb->iMbY;
     SDqLayer* pCurLayer           = pEncCtx->pCurDqLayer;
-//    SWelsSvcRc* pWelsSvcRc        = &(pEncCtx->pWelsSvcRc[pEncCtx->uiDependencyId]);
+    SWelsSvcRc* pWelsSvcRc        = &(pEncCtx->pWelsSvcRc[pEncCtx->uiDependencyId]);
     const uint8_t kuiChromaQpIndexOffset = pCurLayer->sLayerInfo.pPpsP->uiChromaQpIndexOffset;
 
-    // === Adjust QP using ROI region ===================================
-    // ROI area: face detection results
+    // === Dynamic ROI QP Adjustment ===================================
+    // ROI area: face detection results with adaptive QP adjustment
     // Transition area: expand the ROI area by 5 marco blocks outward
-    // Background Area: outside transition area
+    // Background Area: outside transition area with adaptive QP adjustment
 
     if (pObjectRange != NULL) {
-        bool isBgArea   = (iMbX < pObjectRange->iXTransitStart) || (iMbX > pObjectRange->iXTransitEnd) || (iMbY < pObjectRange->iYTransitStart) || (iMbY > pObjectRange->iYTransitEnd);
-        if (isBgArea) {
+        // Calculate dynamic QP differences based on rate control status
+        int32_t iDynamicRoiDiff, iDynamicBgDiff;
+        RcCalculateDynamicRoiQpDiff(pEncCtx, &iDynamicRoiDiff, &iDynamicBgDiff);
+        
+        // Apply QP adjustment with safety bounds
+        uint8_t uiBaseQp = pCurMb->uiLumaQp;
+
+        // For ROI area, we want lower QP (higher quality). iDynamicRoiDiff is negative.
+        // Use iMinQp to ensure the best possible quality for ROI.
+        uint8_t uiLumaQpRoiArea = WELS_CLIP3(uiBaseQp + iDynamicRoiDiff,
+                                             pWelsSvcRc->iMinQp, pWelsSvcRc->iMaxFrameQp);
+
+        // For Background area, we want higher QP (lower quality) to save bits. iDynamicBgDiff is positive.
+        uint8_t uiLumaQpBgArea = WELS_CLIP3(uiBaseQp + iDynamicBgDiff,
+                                            pWelsSvcRc->iMinFrameQp, pWelsSvcRc->iMaxFrameQp);
+        
+        if (iMbX > pObjectRange->iXTransitStart && iMbX < pObjectRange->iXTransitEnd &&
+            iMbY > pObjectRange->iYTransitStart && iMbY < pObjectRange->iYTransitEnd) {
+            // ROI area - use lower QP for better quality
+            uiLumaQp = uiLumaQpRoiArea;
+            
+            // Update ROI statistics for monitoring
+            static int32_t s_iRoiMbCount = 0;
+            static int32_t s_iTotalRoiQpSum = 0;
+            s_iRoiMbCount++;
+            s_iTotalRoiQpSum += uiLumaQp;
+            
+        } else if (iMbX < pObjectRange->iXTransitStart || iMbX > pObjectRange->iXTransitEnd ||
+                  iMbY < pObjectRange->iYTransitStart || iMbY > pObjectRange->iYTransitEnd) {
+            // Background area - use higher QP to save bits
             uiLumaQp = uiLumaQpBgArea;
-        } else {
-            if ((iMbX >= pObjectRange->iXStart) && (iMbX <= pObjectRange->iXEnd) && (iMbY >= pObjectRange->iYStart) && (iMbY <= pObjectRange->iYEnd)) {
-//                uiLumaQp = (uint8_t)WELS_CLIP3 (uiLumaQp, pWelsSvcRc->iMinFrameQp, pWelsSvcRc->iMaxFrameQp);
-                uiLumaQp = uiLumaQpRoiArea;
-            }
+            
+            // Update background statistics for monitoring
+            static int32_t s_iBgMbCount = 0;
+            static int32_t s_iTotalBgQpSum = 0;
+            s_iBgMbCount++;
+            s_iTotalBgQpSum += uiLumaQp;
         }
+        // Transition area keeps original uiLumaQp for smooth blending
+        
     }
+    
+    // Update chroma QP accordingly
     uiChromaQp = g_kuiChromaQpTable[CLIP3_QP_0_51 (uiLumaQp + kuiChromaQpIndexOffset)];
-    // ========
     
     pCurMb->uiLumaQp = uiLumaQp;
     pCurMb->uiChromaQp = uiChromaQp;
@@ -1550,6 +1726,7 @@ void  WelsRcInitFuncPointers (sWelsEncCtx* pEncCtx, RC_MODES iRcMode) {
     pRcf->pfWelsUpdateBufferWhenSkip = UpdateBufferWhenFrameSkipped;
     pRcf->pfWelsUpdateMaxBrWindowStatus = UpdateMaxBrCheckWindowStatus;
     pRcf->pfWelsRcPostFrameSkipping = WelsRcPostFrameSkipping;
+    WelsLog (& (pEncCtx->sLogCtx), WELS_LOG_ERROR, "RC_BITRATE_MODE\n");
     break;
   case RC_BITRATE_MODE_POST_SKIP:
     pRcf->pfWelsRcPictureInit = WelsRcPictureInitGom;
