@@ -111,6 +111,8 @@ class CWelsH264SVCEncoder : public ISVCEncoder {
   int32_t           m_iMaxPicHeight;
 
   int32_t           m_iCspInternal;
+  SObjectRange      m_sObjectRange;
+  bool              m_bObjectRangeValid;
   bool              m_bInitialFlag;
 
 #ifdef OUTPUT_BIT_STREAM
@@ -126,6 +128,7 @@ class CWelsH264SVCEncoder : public ISVCEncoder {
 
   void    InitEncoder (void);
   void    DumpSrcPicture (const SSourcePicture*  pSrcPic, const int iUsageType);
+
 };
 }
 #endif // !defined(WELS_PLUS_WELSENCODEREXT_H)

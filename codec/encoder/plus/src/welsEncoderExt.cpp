@@ -65,6 +65,8 @@ CWelsH264SVCEncoder::CWelsH264SVCEncoder()
     m_iMaxPicWidth (0),
     m_iMaxPicHeight (0),
     m_iCspInternal (0),
+    m_sObjectRange (),
+    m_bObjectRangeValid (false),
     m_bInitialFlag (false) {
 #ifdef REC_FRAME_COUNT
   int32_t m_uiCountFrameNum = 0;
@@ -403,6 +405,12 @@ int CWelsH264SVCEncoder::EncodeFrame (const SSourcePicture* kpSrcPic, SFrameBSIn
 
 int CWelsH264SVCEncoder ::EncodeFrameInternal (const SSourcePicture*  pSrcPic, SFrameBSInfo* pBsInfo) {
 
+  if (m_pEncContext && m_pEncContext->pSvcParam) {
+    m_bObjectRangeValid = false;
+    m_pEncContext->pSvcParam->pObjectRange = NULL;
+    m_pEncContext->pSvcParam->iObjectRangeNum = 0;
+  }
+
   if ((pSrcPic->iPicWidth < 16) || ((pSrcPic->iPicHeight < 16))) {
     WelsLog (&m_pWelsTrace->m_sLogCtx, WELS_LOG_ERROR, "Don't support width(%d) or height(%d) which is less than 16!",
              pSrcPic->iPicWidth, pSrcPic->iPicHeight);
@@ -484,10 +492,6 @@ int CWelsH264SVCEncoder ::EncodeFrameInternal (const SSourcePicture*  pSrcPic, S
 int CWelsH264SVCEncoder::EncodeFrame (const SSourcePicture* kpSrcPic, SFrameBSInfo* pBsInfo, SObjectRange* pObjectRange) {
   short xAsisMbs = kpSrcPic->iPicWidth / 16;
   short yAsisMbs = kpSrcPic->iPicHeight / 16;
-  pObjectRange->iXTransitStart = (pObjectRange->iXStart - 5);
-  pObjectRange->iXTransitEnd = (pObjectRange->iXEnd + 5);
-  pObjectRange->iYTransitStart = (pObjectRange->iYStart - 5);
-  pObjectRange->iYTransitEnd = (pObjectRange->iYEnd + 5);
   if (! (kpSrcPic && m_bInitialFlag && pBsInfo)) {
     WelsLog (&m_pWelsTrace->m_sLogCtx, WELS_LOG_ERROR, "CWelsH264SVCEncoder::EncodeFrame(), cmInitParaError.");
     return cmInitParaError;
@@ -517,6 +521,23 @@ int CWelsH264SVCEncoder::EncodeFrame (const SSourcePicture* kpSrcPic, SFrameBSIn
 
 
 int CWelsH264SVCEncoder ::EncodeFrameInternal (const SSourcePicture*  pSrcPic, SFrameBSInfo* pBsInfo, SObjectRange* pObjectRange) {
+
+  if (m_pEncContext && m_pEncContext->pSvcParam) {
+    if (pObjectRange != NULL) {
+      m_sObjectRange = *pObjectRange;
+      m_sObjectRange.iXTransitStart = pObjectRange->iXStart - 5;
+      m_sObjectRange.iXTransitEnd = pObjectRange->iXEnd + 5;
+      m_sObjectRange.iYTransitStart = pObjectRange->iYStart - 5;
+      m_sObjectRange.iYTransitEnd = pObjectRange->iYEnd + 5;
+      m_bObjectRangeValid = true;
+      m_pEncContext->pSvcParam->pObjectRange = &m_sObjectRange;
+      m_pEncContext->pSvcParam->iObjectRangeNum = 1;
+    } else {
+      m_bObjectRangeValid = false;
+      m_pEncContext->pSvcParam->pObjectRange = NULL;
+      m_pEncContext->pSvcParam->iObjectRangeNum = 0;
+    }
+  }
 
   if ((pSrcPic->iPicWidth < 16) || ((pSrcPic->iPicHeight < 16))) {
     WelsLog (&m_pWelsTrace->m_sLogCtx, WELS_LOG_ERROR, "Don't support width(%d) or height(%d) which is less than 16!",
