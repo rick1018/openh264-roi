@@ -397,14 +397,33 @@ void RcCalculateIdrQp (sWelsEncCtx* pEncCtx) {
   double dBpp = 0;
   int32_t i;
 
-//64k@6fps for 90p:     bpp 0.74    QP:24
+ //64k@6fps for 90p:     bpp 0.74    QP:24
 //192k@12fps for 180p:  bpp 0.28    QP:26
 //512k@24fps for 360p:  bpp 0.09    QP:30
+//1000k@30fps for 540p: bpp ~0.07   QP:31
 //1500k@30fps for 720p: bpp 0.05    QP:32
-  double dBppArray[4][3] = {{0.5, 0.75, 1.0}, {0.2, 0.3, 0.4}, {0.05, 0.09, 0.13}, {0.03, 0.06, 0.1}};
-  int32_t dInitialQPArray[4][4] = {{28, 26, 24, 22}, {30, 28, 26, 24}, {32, 30, 28, 26}, {34, 32, 30, 28}};
+  double dBppArray[5][3] = {
+    {0.5, 0.75, 1.0},     // 90p
+    {0.2, 0.3, 0.4},      // 180p
+    {0.05, 0.09, 0.13},   // 360p
+    {0.04, 0.07, 0.11},   // 540p
+    {0.03, 0.06, 0.1}     // 720p+
+  };
+  int32_t dInitialQPArray[5][4] = {
+    {28, 26, 24, 22}, // 90p
+    {30, 28, 26, 24}, // 180p
+    {32, 30, 28, 26}, // 360p
+    {33, 31, 29, 27}, // 540p
+    {34, 32, 30, 28}  // 720p+
+  };
   int32_t iBppIndex = 0;
-  int32_t iQpRangeArray[4][2] = {{37, 25}, {36, 24}, {35, 23}, {34, 22}};
+  int32_t iQpRangeArray[5][2] = {
+    {37, 25}, // 90p
+    {36, 24}, // 180p
+    {35, 23}, // 360p
+    {34, 23}, // 540p
+    {34, 22}  // 720p+
+  };
   int64_t iFrameComplexity = pEncCtx->pVaa->sComplexityAnalysisParam.iFrameComplexity;
   if (pEncCtx->pSvcParam->iUsageType == SCREEN_CONTENT_REAL_TIME) {
     SVAAFrameInfoExt* pVaa = static_cast<SVAAFrameInfoExt*> (pEncCtx->pVaa);
@@ -426,8 +445,10 @@ void RcCalculateIdrQp (sWelsEncCtx* pEncCtx) {
     iBppIndex = 1;
   else if (pDLayerParam->iVideoWidth * pDLayerParam->iVideoHeight <= 460800) // 360p video:640*360
     iBppIndex = 2;
-  else
+  else if (pDLayerParam->iVideoWidth * pDLayerParam->iVideoHeight <= 522240) // 540p video:960*544
     iBppIndex = 3;
+  else
+    iBppIndex = 4;
 
 //Search
   for (i = 0; i < 3; i++) {
@@ -836,22 +857,10 @@ void RcAdjustMbQpByRange (sWelsEncCtx* pEncCtx, SMB* pCurMb) {
             // ROI area - use lower QP for better quality
             uiLumaQp = uiLumaQpRoiArea;
             
-            // Update ROI statistics for monitoring
-            static int32_t s_iRoiMbCount = 0;
-            static int32_t s_iTotalRoiQpSum = 0;
-            s_iRoiMbCount++;
-            s_iTotalRoiQpSum += uiLumaQp;
-            
         } else if (iMbX < pObjectRange->iXTransitStart || iMbX > pObjectRange->iXTransitEnd ||
                   iMbY < pObjectRange->iYTransitStart || iMbY > pObjectRange->iYTransitEnd) {
             // Background area - use higher QP to save bits
             uiLumaQp = uiLumaQpBgArea;
-            
-            // Update background statistics for monitoring
-            static int32_t s_iBgMbCount = 0;
-            static int32_t s_iTotalBgQpSum = 0;
-            s_iBgMbCount++;
-            s_iTotalBgQpSum += uiLumaQp;
         }
         // Transition area keeps original uiLumaQp for smooth blending
         
