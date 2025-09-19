@@ -47,13 +47,13 @@
 #include "svc_enc_golomb.h"
 
 // Original fixed values
-#define QP_DIFF_ROI -6
-#define QP_DIFF_BG 10
+#define QP_DIFF_ROI -8
+#define QP_DIFF_BG 8
 
 // Dynamic ROI adjustment ranges
-#define QP_DIFF_ROI_MIN -12
+#define QP_DIFF_ROI_MIN -16
 #define QP_DIFF_ROI_MAX -2
-#define QP_DIFF_BG_MIN 6
+#define QP_DIFF_BG_MIN 2
 #define QP_DIFF_BG_MAX 16
 
 // ROI control thresholds
@@ -700,7 +700,7 @@ void RcDecideTargetBits (sWelsEncCtx* pEncCtx) {
     pWelsSvcRc->iTargetBits = WELS_CLIP3 (pWelsSvcRc->iTargetBits, pTOverRc->iMinBitsTl, pTOverRc->iMaxBitsTl);
   }
   
-  // ROI-aware bit budget adjustment
+#ifdef ENABLE_ROI_BUDGET_ADJUSTMENT
   SObjectRange* pObjectRange = pEncCtx->pSvcParam->pObjectRange;
   if (pObjectRange != NULL && pWelsSvcRc->iTargetBits > 0) {
     // Calculate ROI area ratio and expected bit increase
@@ -737,7 +737,8 @@ void RcDecideTargetBits (sWelsEncCtx* pEncCtx) {
             
     pWelsSvcRc->iTargetBits = iAdjustedTargetBits;
   }
-  
+#endif // ENABLE_ROI_BUDGET_ADJUSTMENT
+
   pWelsSvcRc->iRemainingWeights -= pTOverRc->iTlayerWeight;
 }
 
