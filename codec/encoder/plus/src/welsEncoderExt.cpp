@@ -527,7 +527,7 @@ int CWelsH264SVCEncoder ::EncodeFrameInternal (const SSourcePicture*  pSrcPic, S
       m_sObjectRange = *pObjectRange;
       m_sObjectRange.iXTransitStart = pObjectRange->iXStart - 5;
       m_sObjectRange.iXTransitEnd = pObjectRange->iXEnd + 5;
-      m_sObjectRange.iYTransitStart = pObjectRange->iYStart - 5;
+      m_sObjectRange.iYTransitStart = pObjectRange->iYStart; // upper part is usually hair, avoid spending too many bits
       m_sObjectRange.iYTransitEnd = pObjectRange->iYEnd + 5;
       m_bObjectRangeValid = true;
       m_pEncContext->pSvcParam->pObjectRange = &m_sObjectRange;
